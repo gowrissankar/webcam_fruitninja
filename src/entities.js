@@ -53,12 +53,17 @@ export class Fruit {
       this.type = choice.name;
       this.color = choice.color;
     }
+    
+    // Mid-air rotation physics
+    this.angle = Math.random() * Math.PI * 2;
+    this.rotationSpeed = (Math.random() - 0.5) * 0.08;
   }
 
   update() {
     this.x += this.vx;
     this.y += this.vy;
     this.vy += GRAVITY;
+    this.angle += this.rotationSpeed;
     
     if (this.y > HEIGHT + FRUIT_SIZE * 4) this.active = false;
   }
@@ -68,7 +73,11 @@ export class Fruit {
     
     // If the image is loaded and is not an empty/blank placeholder (width > 1)
     if (img && img.complete && img.naturalWidth > 1) {
-      ctx.drawImage(img, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+      ctx.drawImage(img, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
+      ctx.restore();
     } else {
       // Graceful high-quality vector fallbacks
       ctx.fillStyle = this.color;
@@ -112,12 +121,17 @@ export class FruitHalf {
     this.color = color;
     this.type = type;
     this.active = true;
+    
+    // Splitting fruits spin outwards rapidly
+    this.angle = Math.random() * Math.PI * 2;
+    this.rotationSpeed = (isLeft ? -1 : 1) * (0.08 + Math.random() * 0.08);
   }
 
   update() {
     this.x += this.vx;
     this.y += this.vy;
     this.vy += GRAVITY;
+    this.angle += this.rotationSpeed;
     if (this.y > HEIGHT + FRUIT_SIZE * 4) this.active = false;
   }
 
@@ -126,7 +140,11 @@ export class FruitHalf {
     const img = imageCache[key];
     
     if (img && img.complete && img.naturalWidth > 1) {
-      ctx.drawImage(img, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+      ctx.drawImage(img, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
+      ctx.restore();
     } else {
       drawHalfCircle(ctx, this.color, this.x, this.y, this.radius, this.isLeft);
     }
