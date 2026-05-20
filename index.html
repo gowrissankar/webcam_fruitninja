@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR Fruit Ninja</title>
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  <!-- Load MediaPipe via CDN to avoid Vite ESM/CJS interop errors -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="app">
+    <video id="input_video" style="display: none;" autoplay playsinline></video>
+    <canvas id="output_canvas" width="800" height="600"></canvas>
+    
+    <div id="hud">
+      <div id="score-container">SCORE: <span id="score">0</span></div>
+      <div id="lives-container">LIVES: <span id="lives">3</span></div>
+    </div>
+
+    <div id="overlay" class="overlay-state">
+      <h1 id="overlay-title">FRUIT NINJA AR</h1>
+      <p id="overlay-subtitle">Click start and allow camera access</p>
+      <button id="action-button">START GAME</button>
+    </div>
+  </div>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
