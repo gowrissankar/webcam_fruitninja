@@ -5,26 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AR Fruit Ninja</title>
   <link rel="stylesheet" href="/style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-  <!-- Load MediaPipe via CDN to avoid Vite ESM/CJS interop errors -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="app">
-    <video id="input_video" style="display: none;" autoplay playsinline></video>
+    <!-- fallbacks / edges -->
+    <div class="bg-fallback"></div>
+    
+    <!-- Camera stream -->
+    <video id="input_video" autoplay playsinline style="display: none;"></video>
+    
+    <!-- Canvas for game elements, blade, etc. -->
     <canvas id="output_canvas" width="800" height="600"></canvas>
     
-    <div id="hud">
+    <!-- HUD Layer -->
+    <div id="hud" class="hud-layer hidden">
       <div id="score-container">SCORE: <span id="score">0</span></div>
-      <div id="lives-container">LIVES: <span id="lives">3</span></div>
+      <div id="lives-container">
+        LIVES: <span id="hearts-display">❤❤❤</span>
+      </div>
     </div>
 
-    <div id="overlay" class="overlay-state">
-      <h1 id="overlay-title">FRUIT NINJA AR</h1>
-      <p id="overlay-subtitle">Click start and allow camera access</p>
-      <button id="action-button">START GAME</button>
+    <!-- Screen Overlays -->
+    <div id="overlay-container" class="overlay-state">
+      <!-- 1. Start Screen -->
+      <div id="overlay-start" class="screen-view hidden">
+        <h1 class="game-title">FRUIT NINJA AR</h1>
+        <p class="game-subtitle">Touch some fruits</p>
+        <button id="action-button">START GAME</button>
+        <div id="helper-text-container" class="helper-text">Sit far away & use open hands</div>
+      </div>
+      
+      <!-- 2. Loading Screen -->
+      <div id="overlay-loading" class="screen-view">
+        <div class="loader-ring"><div></div><div></div><div></div><div></div></div>
+        <h2 class="loading-title">INITIALIZING TRACKER</h2>
+        <p class="loading-subtitle">Preparing camera and hand tracking...</p>
+      </div>
+      
+      <!-- 3. Pause Screen -->
+      <div id="overlay-paused" class="screen-view hidden">
+        <div class="icon-indicator">⏸</div>
+        <h2 class="overlay-title">PAUSED</h2>
+        <p class="overlay-subtitle">Pinch and hold to Resume</p>
+      </div>
+      
+      <!-- 4. No Hand Screen -->
+      <div id="overlay-no-hand" class="screen-view hidden">
+        <div class="icon-indicator hand-pulse">✋</div>
+        <h2 class="overlay-title">HAND LOST</h2>
+        <p class="overlay-subtitle">Move hand into frame</p>
+      </div>
+      
+      <!-- 5. Game Over Screen -->
+      <div id="overlay-game-over" class="screen-view hidden">
+        <h1 class="game-title text-red">GAME OVER</h1>
+        <div class="game-over-stats">
+          SCORE: <span id="final-score">0</span>
+        </div>
+        <p class="game-subtitle pulse-text">PINCH TO RESTART</p>
+      </div>
     </div>
   </div>
+  
   <script type="module" src="/main.js"></script>
 </body>
 </html>

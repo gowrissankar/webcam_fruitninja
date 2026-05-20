@@ -111,12 +111,14 @@ export class GameManager {
     for (const f of this.fruits) {
       f.update();
       if (f.y > HEIGHT + 50 && !f.isBomb && f.active) {
-        this.lives--;
-        this.ui.updateLives(this.lives);
-        f.active = false;
-        if (this.lives <= 0 && !DEBUG_MODE) {
-          this.triggerGameOver();
+        if (!DEBUG_MODE) {
+          this.lives--;
+          this.ui.updateLives(this.lives);
+          if (this.lives <= 0) {
+            this.triggerGameOver();
+          }
         }
+        f.active = false;
       }
     }
     
@@ -156,8 +158,8 @@ export class GameManager {
           } else {
             this.score++;
             this.ui.updateScore(this.score);
-            this.fruitHalves.push(new FruitHalf(f.x, f.y, f.vy, f.color, true));
-            this.fruitHalves.push(new FruitHalf(f.x, f.y, f.vy, f.color, false));
+            this.fruitHalves.push(new FruitHalf(f.x, f.y, f.vy, f.color, f.type, true));
+            this.fruitHalves.push(new FruitHalf(f.x, f.y, f.vy, f.color, f.type, false));
             this.comboCount++;
             this.comboTimer = COMBO_TIME_WINDOW;
           }

@@ -2,7 +2,7 @@
 export const WIDTH = 800;
 export const HEIGHT = 600;
 export const FPS = 60;
-export const DEBUG_MODE = false;
+export const DEBUG_MODE = true;
 
 // --- GAME STATES ---
 export const STATE_START = 0;
@@ -12,10 +12,10 @@ export const STATE_NO_HAND = 3;
 export const STATE_GAME_OVER = 4;
 
 // --- PHYSICS & SPAWN CONSTANTS ---
-export const GRAVITY = 0.6; // Increased for tighter arcs
+export const GRAVITY = 0.8; // Increased for tighter arcs
 export const FRUIT_SIZE = 30; // Radius
-export const INITIAL_Y_VELOCITY_MIN = -16; // Moderate toss
-export const INITIAL_Y_VELOCITY_MAX = -22; // High aggressive toss
+export const INITIAL_Y_VELOCITY_MIN = -25; // Reaches at least 50% screen height
+export const INITIAL_Y_VELOCITY_MAX = -31; // Reaches up to 90% screen height
 export const HORIZONTAL_DRIFT_RANGE = 3; // -3 to +3 vx
 export const HALF_HORIZONTAL_SPLIT_SPEED = 4; // Velocity when split
 
