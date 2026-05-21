@@ -151,7 +151,11 @@ actionBtn.addEventListener('click', async () => {
   try {
     if (!cameraStream) {
       cameraStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { width: WIDTH, height: HEIGHT } 
+        video: { 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 },
+          aspectRatio: { ideal: 16/9 }
+        } 
       });
       videoElement.srcObject = cameraStream;
       await new Promise(resolve => {

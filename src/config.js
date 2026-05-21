@@ -1,6 +1,6 @@
 // --- DISPLAY SETTINGS ---
-export const WIDTH = 800;
-export const HEIGHT = 600;
+export const WIDTH = 1280;
+export const HEIGHT = 720;
 export const FPS = 60;
 export const DEBUG_MODE = true;
 
