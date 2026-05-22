@@ -391,3 +391,13 @@ function renderLoop() {
 }
 
 renderLoop();
+
+// Dynamically load Vercel Analytics script without trigger bundler alerts
+(function() {
+  const va = document.createElement('script');
+  va.type = 'text/javascript';
+  va.async = true;
+  va.src = '/_vercel/insights/script.js';
+  const s = document.getElementsByTagName('script')[0];
+  s.parentNode.insertBefore(va, s);
+})();
