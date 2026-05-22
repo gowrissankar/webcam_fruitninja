@@ -1,14 +1,14 @@
 import { 
   GRAVITY, INITIAL_Y_VELOCITY_MIN, INITIAL_Y_VELOCITY_MAX, 
-  HORIZONTAL_DRIFT_RANGE, HEIGHT, FRUIT_SIZE, HALF_HORIZONTAL_SPLIT_SPEED 
+  HORIZONTAL_DRIFT_RANGE, HEIGHT, WIDTH, FRUIT_SIZE, HALF_HORIZONTAL_SPLIT_SPEED 
 } from './config.js';
 import { drawHalfCircle } from './utils.js';
 
 const FRUIT_TYPES = [
-  { name: 'apple', color: '#ff3b30' },
-  { name: 'orange', color: '#ff9500' },
-  { name: 'banana', color: '#ffcc00' },
-  { name: 'watermelon', color: '#4cd964' }
+  { name: 'apple', color: '#ff3b30', symmetric: true },
+  { name: 'orange', color: '#ff9500', symmetric: true },
+  { name: 'banana', color: '#ffcc00', symmetric: false },
+  { name: 'watermelon', color: '#4cd964', symmetric: true }
 ];
 
 const BOMB_COLOR = '#1c1c1e';
@@ -31,17 +31,26 @@ function loadImage(key, src) {
 loadImage('bomb', '/assets/fruits/bomb.png');
 FRUIT_TYPES.forEach(fruit => {
   loadImage(fruit.name, `/assets/fruits/${fruit.name}.png`);
-  loadImage(`${fruit.name}_left`, `/assets/fruits/${fruit.name}_left.png`);
-  loadImage(`${fruit.name}_right`, `/assets/fruits/${fruit.name}_right.png`);
+  if (fruit.symmetric) {
+    loadImage(`${fruit.name}_half`, `/assets/fruits/${fruit.name}_half.png`);
+  } else {
+    loadImage(`${fruit.name}_left`, `/assets/fruits/${fruit.name}_left.png`);
+    loadImage(`${fruit.name}_right`, `/assets/fruits/${fruit.name}_right.png`);
+  }
 });
 
 export class Fruit {
   constructor(x, isBomb = false) {
     this.x = x;
-    this.y = HEIGHT + FRUIT_SIZE * 2; 
-    this.vx = (Math.random() - 0.5) * 2 * HORIZONTAL_DRIFT_RANGE; 
-    this.vy = INITIAL_Y_VELOCITY_MIN + Math.random() * (INITIAL_Y_VELOCITY_MAX - INITIAL_Y_VELOCITY_MIN);
     this.radius = FRUIT_SIZE;
+    this.y = HEIGHT + this.radius * 2; 
+    
+    // Inward trajectory sweep: left spawns move right, right spawns move left
+    const minDrift = 0.5;
+    const drift = minDrift + Math.random() * (HORIZONTAL_DRIFT_RANGE - minDrift);
+    this.vx = this.x < WIDTH / 2 ? drift : -drift;
+    
+    this.vy = INITIAL_Y_VELOCITY_MIN + Math.random() * (INITIAL_Y_VELOCITY_MAX - INITIAL_Y_VELOCITY_MIN);
     this.isBomb = isBomb;
     this.active = true;
     
@@ -54,9 +63,9 @@ export class Fruit {
       this.color = choice.color;
     }
     
-    // Mid-air rotation physics
+    // Mid-air rotation physics: slowed down significantly to look realistic and graceful
     this.angle = Math.random() * Math.PI * 2;
-    this.rotationSpeed = (Math.random() - 0.5) * 0.08;
+    this.rotationSpeed = (Math.random() - 0.5) * 0.035;
   }
 
   update() {
@@ -65,7 +74,7 @@ export class Fruit {
     this.vy += GRAVITY;
     this.angle += this.rotationSpeed;
     
-    if (this.y > HEIGHT + FRUIT_SIZE * 4) this.active = false;
+    if (this.y > HEIGHT + this.radius * 4) this.active = false;
   }
 
   draw(ctx) {
@@ -89,21 +98,21 @@ export class Fruit {
       if (this.isBomb) {
         // Draw standard bomb wick
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = Math.max(1.5, this.radius * 0.1);
         ctx.beginPath();
-        ctx.arc(this.x + 8, this.y - 18, 8, Math.PI, Math.PI * 1.6);
+        ctx.arc(this.x + this.radius * 0.27, this.y - this.radius * 0.6, this.radius * 0.27, Math.PI, Math.PI * 1.6);
         ctx.stroke();
         
         // Draw spark sparkler
         ctx.fillStyle = '#ffcc00';
         ctx.beginPath();
-        ctx.arc(this.x + 10, this.y - 28, 4, 0, Math.PI * 2);
+        ctx.arc(this.x + this.radius * 0.33, this.y - this.radius * 0.93, this.radius * 0.13, 0, Math.PI * 2);
         ctx.fill();
       } else {
         // Add a slice gleam highlight
         ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
         ctx.beginPath();
-        ctx.arc(this.x - 6, this.y - 6, this.radius * 0.4, 0, Math.PI * 2);
+        ctx.arc(this.x - this.radius * 0.2, this.y - this.radius * 0.2, this.radius * 0.4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -132,17 +141,33 @@ export class FruitHalf {
     this.y += this.vy;
     this.vy += GRAVITY;
     this.angle += this.rotationSpeed;
-    if (this.y > HEIGHT + FRUIT_SIZE * 4) this.active = false;
+    if (this.y > HEIGHT + this.radius * 4) this.active = false;
   }
 
   draw(ctx) {
-    const key = `${this.type}_${this.isLeft ? 'left' : 'right'}`;
-    const img = imageCache[key];
+    const fruitConfig = FRUIT_TYPES.find(f => f.name === this.type);
+    const isSymmetric = fruitConfig ? fruitConfig.symmetric : false;
+    
+    let img;
+    let flipHorizontal = false;
+    
+    if (isSymmetric) {
+      img = imageCache[`${this.type}_half`];
+      if (!this.isLeft) {
+        flipHorizontal = true;
+      }
+    } else {
+      const key = `${this.type}_${this.isLeft ? 'left' : 'right'}`;
+      img = imageCache[key];
+    }
     
     if (img && img.complete && img.naturalWidth > 1) {
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
+      if (flipHorizontal) {
+        ctx.scale(-1, 1);
+      }
       ctx.drawImage(img, -this.radius, -this.radius, this.radius * 2, this.radius * 2);
       ctx.restore();
     } else {

@@ -13,6 +13,7 @@ const canvasCtx = canvasElement.getContext('2d');
 
 const overlayContainer = document.getElementById('overlay-container');
 const actionBtn = document.getElementById('action-button');
+let cameraStream = null;
 
 // Rotating start tips
 const helperTips = [
@@ -42,14 +43,47 @@ const ui = {
     const scoreEl = document.getElementById('score');
     if (scoreEl) scoreEl.innerText = s;
   },
-  updateLives: (l) => {
-    const heartsEl = document.getElementById('hearts-display');
-    if (heartsEl) {
-      const maxLives = 3;
-      const heartsFilled = Math.max(0, Math.min(maxLives, l));
-      const heartsEmpty = Math.max(0, maxLives - heartsFilled);
-      heartsEl.innerText = '❤'.repeat(heartsFilled) + '♡'.repeat(heartsEmpty);
+  updateLives: (l, mode = 'classic') => {
+    const livesContainer = document.getElementById('lives-container');
+    if (livesContainer) {
+      if (mode === 'zen') {
+        livesContainer.style.color = '#00ffcc';
+        livesContainer.innerHTML = '<span style="font-family:\'Gang of Three\'; letter-spacing: 2px;">ZEN MODE</span>';
+        livesContainer.style.textShadow = 'none';
+      } else {
+        livesContainer.style.color = '#ff3b30';
+        livesContainer.style.textShadow = 'none';
+        livesContainer.innerHTML = '<span id="hearts-display"></span>';
+        const container = document.getElementById('hearts-display');
+        if (container) {
+          container.innerHTML = '';
+          const maxLives = 3;
+          const heartsFilled = Math.max(0, Math.min(maxLives, l));
+          for (let i = 0; i < maxLives; i++) {
+            const img = document.createElement('img');
+            img.src = '/assets/fruits/heart.png';
+            img.className = 'heart-icon';
+            if (i >= heartsFilled) {
+              img.classList.add('lost');
+            }
+            container.appendChild(img);
+          }
+        }
+      }
     }
+  },
+  triggerBombFlash: () => {
+    videoElement.pause();
+    const flashEl = document.getElementById('white-flash');
+    if (flashEl) {
+      flashEl.classList.add('active');
+      // Trigger a reflow to make the transition work
+      flashEl.offsetHeight; 
+      flashEl.classList.remove('active');
+    }
+  },
+  resumeVideo: () => {
+    videoElement.play().catch(err => console.warn("Failed to resume video:", err));
   },
   showOverlay: (title, subtitle, btnText) => {
     overlayContainer.classList.remove('hidden');
@@ -58,6 +92,7 @@ const ui = {
     document.querySelectorAll('.screen-view').forEach(el => el.classList.add('hidden'));
     
     const hud = document.getElementById('hud');
+    const bgFallback = document.querySelector('.bg-fallback');
     
     if (title.includes("LOADING") || title.includes("INITIALIZING")) {
       const view = document.getElementById('overlay-loading');
@@ -68,22 +103,28 @@ const ui = {
         }
       }
       if (hud) hud.classList.add('hidden');
+      if (!cameraStream && bgFallback) bgFallback.classList.remove('hidden');
     } else if (title.includes("PAUSED")) {
       const view = document.getElementById('overlay-paused');
       if (view) view.classList.remove('hidden');
       if (hud) hud.classList.remove('hidden');
+      if (bgFallback) bgFallback.classList.add('hidden'); // Hide during gameplay pause
     } else if (title.includes("NO HAND") || title.includes("LOST")) {
       const view = document.getElementById('overlay-no-hand');
       if (view) view.classList.remove('hidden');
       if (hud) hud.classList.remove('hidden');
+      if (bgFallback) bgFallback.classList.add('hidden'); // Hide during hand tracking loss
     } else if (title.includes("GAME OVER")) {
       const view = document.getElementById('overlay-game-over');
       if (view) {
         view.classList.remove('hidden');
         const finalScoreEl = document.getElementById('final-score');
         if (finalScoreEl) finalScoreEl.innerText = gameManager.score;
+        const highScoreEl = document.getElementById('high-score');
+        if (highScoreEl) highScoreEl.innerText = gameManager.highScore;
       }
       if (hud) hud.classList.remove('hidden');
+      if (bgFallback) bgFallback.classList.add('hidden'); // Hide background on Game Over restart menu
     } else {
       // Start/Menu screen
       const view = document.getElementById('overlay-start');
@@ -100,17 +141,74 @@ const ui = {
         }
       }
       if (hud) hud.classList.add('hidden');
+      if (!cameraStream && bgFallback) bgFallback.classList.remove('hidden');
     }
   },
   hideOverlay: () => {
     overlayContainer.classList.add('hidden');
     const hud = document.getElementById('hud');
     if (hud) hud.classList.remove('hidden');
+    const bgFallback = document.querySelector('.bg-fallback');
+    if (bgFallback) bgFallback.classList.add('hidden'); // Hide background during active play
   }
 };
 
 const blade = new Blade();
 const gameManager = new GameManager(ui);
+
+// Bind Classic / Zen Mode buttons
+const classicBtn = document.getElementById('mode-classic');
+const zenBtn = document.getElementById('mode-zen');
+
+if (classicBtn && zenBtn) {
+  classicBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    classicBtn.classList.add('active');
+    zenBtn.classList.remove('active');
+    gameManager.mode = 'classic';
+  });
+  
+  zenBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    zenBtn.classList.add('active');
+    classicBtn.classList.remove('active');
+    gameManager.mode = 'zen';
+  });
+}
+
+// Bind navigation and overlay buttons
+const btnResumePause = document.getElementById('btn-resume-pause');
+if (btnResumePause) {
+  btnResumePause.addEventListener('click', (e) => {
+    e.stopPropagation();
+    gameManager.resumeFromPause();
+  });
+}
+
+const btnQuitPause = document.getElementById('btn-quit-pause');
+if (btnQuitPause) {
+  btnQuitPause.addEventListener('click', (e) => {
+    e.stopPropagation();
+    gameManager.goToMainMenu();
+  });
+}
+
+const btnRestartGame = document.getElementById('btn-restart-game');
+if (btnRestartGame) {
+  btnRestartGame.addEventListener('click', (e) => {
+    e.stopPropagation();
+    gameManager.reset();
+    gameManager.startGame();
+  });
+}
+
+const btnQuitGame = document.getElementById('btn-quit-game');
+if (btnQuitGame) {
+  btnQuitGame.addEventListener('click', (e) => {
+    e.stopPropagation();
+    gameManager.goToMainMenu();
+  });
+}
 
 let handDetected = false;
 let fingertipPos = null;
@@ -118,6 +216,10 @@ let thumbPos = null;
 let isPinching = false;
 let lastHandTime = performance.now();
 let currentHandLandmarks = null; // Store landmarks for debug skeleton rendering
+
+let lastVideoTime = -1;
+let lastFpsUpdateTime = performance.now();
+let frameCount = 0;
 
 let handLandmarker = undefined;
 
@@ -144,8 +246,6 @@ async function initializeHandLandmarker() {
 }
 
 initializeHandLandmarker();
-
-let cameraStream = null;
 
 actionBtn.addEventListener('click', async () => {
   try {
@@ -176,7 +276,18 @@ actionBtn.addEventListener('click', async () => {
 function renderLoop() {
   canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
   
-  currentHandLandmarks = null; // Reset every frame
+  // Calculate FPS
+  frameCount++;
+  const currentTime = performance.now();
+  if (currentTime - lastFpsUpdateTime >= 1000) {
+    const fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdateTime));
+    const fpsCounterEl = document.getElementById('fps-counter');
+    if (fpsCounterEl) {
+      fpsCounterEl.innerText = `${fps} FPS`;
+    }
+    frameCount = 0;
+    lastFpsUpdateTime = currentTime;
+  }
   
   canvasCtx.save();
   canvasCtx.translate(WIDTH, 0);
@@ -190,41 +301,46 @@ function renderLoop() {
     canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.15)';
     canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
     
-    // Process synchronously for ultra-low latency hand tracking
-    const startTimeMs = performance.now();
-    const results = handLandmarker.detectForVideo(videoElement, startTimeMs);
-    
-    if (results.landmarks && results.landmarks.length > 0) {
-      lastHandTime = performance.now();
-      handDetected = true;
-      currentHandLandmarks = results.landmarks[0];
+    // Process hand tracking only when a new webcam video frame is ready
+    if (videoElement.currentTime !== lastVideoTime) {
+      lastVideoTime = videoElement.currentTime;
       
-      const lmIndex = currentHandLandmarks[8]; 
-      const lmThumb = currentHandLandmarks[4]; 
+      const startTimeMs = performance.now();
+      const results = handLandmarker.detectForVideo(videoElement, startTimeMs);
       
-      const targetX = (1 - lmIndex.x) * WIDTH;
-      const targetY = lmIndex.y * HEIGHT;
-      
-      if (fingertipPos) {
-        fingertipPos.x = fingertipPos.x + BLADE_SMOOTHING_FACTOR * (targetX - fingertipPos.x);
-        fingertipPos.y = fingertipPos.y + BLADE_SMOOTHING_FACTOR * (targetY - fingertipPos.y);
+      if (results.landmarks && results.landmarks.length > 0) {
+        lastHandTime = performance.now();
+        handDetected = true;
+        currentHandLandmarks = results.landmarks[0];
+        
+        const lmIndex = currentHandLandmarks[8]; 
+        const lmThumb = currentHandLandmarks[4]; 
+        
+        const targetX = (1 - lmIndex.x) * WIDTH;
+        const targetY = lmIndex.y * HEIGHT;
+        
+        if (fingertipPos) {
+          fingertipPos.x = fingertipPos.x + BLADE_SMOOTHING_FACTOR * (targetX - fingertipPos.x);
+          fingertipPos.y = fingertipPos.y + BLADE_SMOOTHING_FACTOR * (targetY - fingertipPos.y);
+        } else {
+          fingertipPos = { x: targetX, y: targetY };
+        }
+        
+        thumbPos = {
+          x: (1 - lmThumb.x) * WIDTH,
+          y: lmThumb.y * HEIGHT
+        };
+        
+        const dist = Math.hypot(fingertipPos.x - thumbPos.x, fingertipPos.y - thumbPos.y);
+        isPinching = dist < PINCH_THRESHOLD; 
       } else {
-        fingertipPos = { x: targetX, y: targetY };
-      }
-      
-      thumbPos = {
-        x: (1 - lmThumb.x) * WIDTH,
-        y: lmThumb.y * HEIGHT
-      };
-      
-      const dist = Math.hypot(fingertipPos.x - thumbPos.x, fingertipPos.y - thumbPos.y);
-      isPinching = dist < PINCH_THRESHOLD; 
-    } else {
-      if (performance.now() - lastHandTime > TRACKING_LOSS_TOLERANCE_MS) {
-        handDetected = false;
-        fingertipPos = null;
-        thumbPos = null;
-        isPinching = false;
+        if (performance.now() - lastHandTime > TRACKING_LOSS_TOLERANCE_MS) {
+          handDetected = false;
+          fingertipPos = null;
+          thumbPos = null;
+          isPinching = false;
+          currentHandLandmarks = null;
+        }
       }
     }
   }

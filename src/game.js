@@ -1,5 +1,6 @@
 import { 
   STATE_START, STATE_RUNNING, STATE_PAUSED, STATE_NO_HAND, STATE_GAME_OVER, 
+  STATE_COUNTDOWN, STATE_DYING,
   WIDTH, HEIGHT, DEBUG_MODE, LIVES_COUNT, WAVE_DELAY_MIN, WAVE_DELAY_MAX, 
   COMBO_TIME_WINDOW, BOMB_SPAWN_CHANCE, PINCH_HOLD_DURATION, SLASH_RADIUS_FORGIVENESS,
   BURST_DELAY_MIN, BURST_DELAY_MAX
@@ -13,6 +14,7 @@ export class GameManager {
     this.state = null;
     this.score = 0;
     this.lives = LIVES_COUNT;
+    this.mode = 'classic';
     
     this.fruits = [];
     this.fruitHalves = [];
@@ -26,6 +28,10 @@ export class GameManager {
     
     this.pinchHoldTimer = 0;
     this.pinchCooldown = 0;
+
+    this.countdownTimer = 0;
+    this.deathTimer = 0;
+    this.highScore = parseInt(localStorage.getItem('fruitninja_high_score') || '0', 10);
   }
 
   reset() {
@@ -39,13 +45,45 @@ export class GameManager {
     this.comboTimer = 0;
     this.comboTexts = [];
     this.pinchHoldTimer = 0;
+    this.countdownTimer = 0;
+    this.deathTimer = 0;
+    this.highScore = parseInt(localStorage.getItem('fruitninja_high_score') || '0', 10);
     this.ui.updateScore(this.score);
-    this.ui.updateLives(this.lives);
+    this.ui.updateLives(this.lives, this.mode);
+  }
+
+  updateHighScore() {
+    if (this.score > this.highScore) {
+      this.highScore = this.score;
+      localStorage.setItem('fruitninja_high_score', this.highScore.toString());
+    }
   }
 
   startGame() {
     this.state = STATE_RUNNING;
     this.ui.hideOverlay();
+    this.ui.updateLives(this.lives, this.mode);
+  }
+
+  resumeFromPause() {
+    if (this.state === STATE_PAUSED) {
+      this.state = STATE_COUNTDOWN;
+      this.countdownTimer = 60; // 1 second
+      this.ui.hideOverlay();
+      this.pinchHoldTimer = 0;
+      this.pinchCooldown = 30;
+    }
+  }
+
+  goToMainMenu() {
+    this.state = STATE_START;
+    this.fruits = [];
+    this.fruitHalves = [];
+    this.waveQueue = [];
+    this.score = 0;
+    this.lives = LIVES_COUNT;
+    this.ui.resumeVideo();
+    this.ui.showOverlay("FRUIT NINJA AR", "Touch some fruits", "START GAME");
   }
 
   update(bladeSegment, handDetected, isPinching, indexPos, thumbPos) {
@@ -57,6 +95,25 @@ export class GameManager {
 
     if (this.state === null) return;
 
+    // Handle dying sequence
+    if (this.state === STATE_DYING) {
+      this.deathTimer--;
+      if (this.deathTimer <= 0) {
+        this.ui.resumeVideo();
+        this.triggerGameOver();
+      }
+      return;
+    }
+
+    // Handle countdown sequence
+    if (this.state === STATE_COUNTDOWN) {
+      this.countdownTimer--;
+      if (this.countdownTimer <= 0) {
+        this.state = STATE_RUNNING;
+      }
+      return;
+    }
+
     if (isPinching && this.pinchCooldown === 0) {
       if (this.state === STATE_START || this.state === STATE_GAME_OVER) {
         this.reset();
@@ -65,10 +122,7 @@ export class GameManager {
       } else if (this.state === STATE_PAUSED) {
         this.pinchHoldTimer++;
         if (this.pinchHoldTimer > PINCH_HOLD_DURATION) { 
-          this.state = STATE_RUNNING;
-          this.ui.hideOverlay();
-          this.pinchHoldTimer = 0;
-          this.pinchCooldown = 30;
+          this.resumeFromPause();
         }
       } else if (this.state === STATE_RUNNING) {
         this.pinchHoldTimer++;
@@ -87,7 +141,8 @@ export class GameManager {
       this.state = STATE_NO_HAND;
       this.ui.showOverlay("NO HAND DETECTED", "Show your hand to resume", null);
     } else if (handDetected && this.state === STATE_NO_HAND) {
-      this.state = STATE_RUNNING;
+      this.state = STATE_COUNTDOWN;
+      this.countdownTimer = 60; // 1-second countdown upon hand detection reacquired
       this.ui.hideOverlay();
     }
 
@@ -110,12 +165,15 @@ export class GameManager {
 
     for (const f of this.fruits) {
       f.update();
-      if (f.y > HEIGHT + 50 && !f.isBomb && f.active) {
-        if (!DEBUG_MODE) {
+      if (f.y > HEIGHT + f.radius && !f.isBomb && f.active) {
+        if (!DEBUG_MODE && this.mode !== 'zen') {
           this.lives--;
-          this.ui.updateLives(this.lives);
+          this.ui.updateLives(this.lives, this.mode);
           if (this.lives <= 0) {
+            this.ui.resumeVideo();
             this.triggerGameOver();
+            this.fruits = [];
+            this.fruitHalves = [];
           }
         }
         f.active = false;
@@ -143,10 +201,10 @@ export class GameManager {
     
     this.comboTexts.forEach(ct => ct.timer--);
     this.comboTexts = this.comboTexts.filter(ct => ct.timer > 0);
-
+ 
     this.fruits = this.fruits.filter(f => f.active);
     this.fruitHalves = this.fruitHalves.filter(h => h.active);
-
+ 
     if (bladeSegment && !isPinching) { 
       const [p1, p2] = bladeSegment;
       for (const f of this.fruits) {
@@ -154,7 +212,9 @@ export class GameManager {
         if (lineIntersectsCircle(p1, p2, {x: f.x, y: f.y}, hitRadius)) {
           f.active = false;
           if (f.isBomb) {
-            if (!DEBUG_MODE) this.triggerGameOver();
+            if (!DEBUG_MODE && this.mode !== 'zen') {
+              this.triggerBombExplosion();
+            }
           } else {
             this.score++;
             this.ui.updateScore(this.score);
@@ -167,24 +227,33 @@ export class GameManager {
       }
     }
   }
-
+ 
+  triggerBombExplosion() {
+    this.state = STATE_DYING;
+    this.deathTimer = 120; // 2 seconds death pause on bomb hit
+    this.fruits = [];
+    this.fruitHalves = [];
+    this.ui.triggerBombFlash();
+  }
+ 
   _scheduleWave() {
     const r = Math.random();
-    const count = r < 0.5 ? 1 : (r < 0.8 ? 2 : 3);
+    const count = r < 0.45 ? 1 : (r < 0.82 ? 2 : 3); // Spawns up to 3 fruits max (removed the 4-fruit chaos to scale to 60% difficulty)
     let currentDelay = 0;
     for (let i = 0; i < count; i++) {
       const x = WIDTH * 0.15 + Math.random() * (WIDTH * 0.7);
-      const isBomb = Math.random() < BOMB_SPAWN_CHANCE;
+      const isBomb = this.mode === 'zen' ? false : (Math.random() < BOMB_SPAWN_CHANCE);
       this.waveQueue.push({ timer: currentDelay, x, isBomb });
       currentDelay += BURST_DELAY_MIN + Math.random() * (BURST_DELAY_MAX - BURST_DELAY_MIN);
     }
   }
-
+ 
   triggerGameOver() {
     this.state = STATE_GAME_OVER;
-    this.ui.showOverlay("GAME OVER", `Final Score: ${this.score} - PINCH TO RESTART`, null);
+    this.updateHighScore();
+    this.ui.showOverlay("GAME OVER", `Final Score: ${this.score}`, null);
   }
-
+ 
   draw(ctx) {
     for (const f of this.fruits) {
       f.draw(ctx);
@@ -194,9 +263,20 @@ export class GameManager {
     }
     for (const ct of this.comboTexts) {
       ctx.fillStyle = 'yellow';
-      ctx.font = 'bold 36px Inter';
+      ctx.font = 'bold 36px "Gang of Three"';
       ctx.textAlign = 'center';
       ctx.fillText(ct.text, ct.pos.x, ct.pos.y);
+    }
+
+    if (this.state === STATE_COUNTDOWN) {
+      ctx.save();
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 120px "Gang of Three"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const count = Math.ceil(this.countdownTimer / 20);
+      ctx.fillText(count.toString(), WIDTH / 2, HEIGHT / 2);
+      ctx.restore();
     }
     
     if (this.isPinching && this.indexPos && this.thumbPos) {
